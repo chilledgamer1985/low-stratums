@@ -1,13 +1,12 @@
+
 #include "stratum.h"
 
 double client_normalize_difficulty(double difficulty)
 {
-	double min_stratum_diff = g_stratum_difficulty * 0.5;
-	if(difficulty < min_stratum_diff)
-		difficulty = min_stratum_diff;
+	if(difficulty < g_stratum_min_diff) difficulty = g_stratum_min_diff;
 	else if(difficulty < 1) difficulty = floor(difficulty*1000/2)/1000*2;
 	else if(difficulty > 1) difficulty = floor(difficulty/2)*2;
-
+	if(difficulty > g_stratum_max_diff) difficulty = g_stratum_max_diff;
 	return difficulty;
 }
 
@@ -26,7 +25,7 @@ void client_record_difficulty(YAAMP_CLIENT *client)
 	client->shares_per_minute = (client->shares_per_minute * (100 - p) + 60*1000*p/e) / 100;
 	client->last_submit_time = current_timestamp();
 
-	debuglog("client->shares_per_minute %f\n", client->shares_per_minute);
+//	debuglog("client->shares_per_minute %f\n", client->shares_per_minute);
 }
 
 void client_change_difficulty(YAAMP_CLIENT *client, double difficulty)
@@ -39,12 +38,8 @@ void client_change_difficulty(YAAMP_CLIENT *client, double difficulty)
 //	debuglog("change diff to %f %f\n", difficulty, client->difficulty_actual);
 	if(difficulty == client->difficulty_actual) return;
 
-	uint64_t user_target = diff_to_target(difficulty);
-//	if(user_target >= YAAMP_MINDIFF && user_target <= YAAMP_MAXDIFF)
-	{
-		client->difficulty_actual = difficulty;
-		client_send_difficulty(client, difficulty);
-	}
+	client->difficulty_actual = difficulty;
+	client_send_difficulty(client, difficulty);
 }
 
 void client_adjust_difficulty(YAAMP_CLIENT *client)
@@ -54,13 +49,19 @@ void client_adjust_difficulty(YAAMP_CLIENT *client)
 		return;
 	}
 
-	if(client->shares_per_minute > 60)
-		client_change_difficulty(client, client->difficulty_actual*2.5);
+	if(client->shares_per_minute > 100)
+		client_change_difficulty(client, client->difficulty_actual*4);
 
 	else if(client->difficulty_fixed)
 		return;
 
-	else if(client->shares_per_minute > 40)
+	else if(client->shares_per_minute > 75)
+		client_change_difficulty(client, client->difficulty_actual*3.5);
+
+	else if(client->shares_per_minute > 50)
+		client_change_difficulty(client, client->difficulty_actual*3);
+
+	else if(client->shares_per_minute > 25)
 		client_change_difficulty(client, client->difficulty_actual*2);
 
 	else if(client->shares_per_minute > 20)
@@ -97,4 +98,5 @@ void client_initialize_difficulty(YAAMP_CLIENT *client)
 		client->difficulty_actual = diff;
 		client->difficulty_fixed = true;
 	}
+
 }
